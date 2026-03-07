@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --text-high: 0 0% 9%;
+    --text-normal: 0 0% 32%;
+    --text-low: 0 0% 55%;
+
+    --bg-primary: 0 0% 100%;
+    --bg-secondary: 0 0% 97%;
+    --bg-panel: 0 0% 95%;
+    --bg-hover: 0 0% 93%;
+    --bg-active: 0 0% 90%;
+
+    --brand: 220 90% 56%;
+    --brand-hover: 220 90% 48%;
+    --brand-secondary: 220 90% 95%;
+
+    --border: 0 0% 89%;
+    --border-strong: 0 0% 78%;
+
+    --error: 0 72% 51%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 220 90% 56%;
+  }
+
+  .dark {
+    --text-high: 0 0% 95%;
+    --text-normal: 0 0% 70%;
+    --text-low: 0 0% 45%;
+
+    --bg-primary: 0 0% 9%;
+    --bg-secondary: 0 0% 12%;
+    --bg-panel: 0 0% 15%;
+    --bg-hover: 0 0% 18%;
+    --bg-active: 0 0% 22%;
+
+    --brand: 220 90% 56%;
+    --brand-hover: 220 90% 64%;
+    --brand-secondary: 220 40% 18%;
+
+    --border: 0 0% 20%;
+    --border-strong: 0 0% 30%;
+
+    --error: 0 72% 51%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 220 90% 56%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply bg-bg-primary text-text-normal font-sans antialiased;
+    margin: 0;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-bg-hover rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-bg-active;
+  }
+}
+
+@layer components {
+  .chat-bubble-user {
+    @apply bg-brand/10 border border-brand/20 rounded-xl rounded-br-sm;
+  }
+
+  .chat-bubble-assistant {
+    @apply bg-bg-secondary border border-border rounded-xl rounded-bl-sm;
+  }
+
+  .chat-bubble-system {
+    @apply bg-warning/10 border border-warning/20 rounded-lg;
+  }
+
+  .status-online {
+    @apply bg-success rounded-full;
+    box-shadow: 0 0 6px hsl(var(--success) / 0.5);
+  }
+
+  .status-offline {
+    @apply bg-text-low/30 rounded-full;
+  }
+}
