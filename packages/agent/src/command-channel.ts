@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { execFile } from 'child_process';
+import { exec } from 'child_process';
 import { RemoteSession, type SessionRequest } from './remote-session.js';
 
 export class CommandChannel {
@@ -183,23 +183,29 @@ export class CommandChannel {
       mode: 'continue',
     });
 
-    let cmd: string;
-    let args: string[];
+    let shellCmd: string;
+
+    // Escape single quotes in prompt for shell
+    const safePrompt = prompt.replace(/'/g, "'\\''");
 
     if (source === 'claude') {
-      cmd = 'claude';
-      args = ['-r', sessionId, '-p', prompt];
+      shellCmd = `claude -r '${sessionId}' -p '${safePrompt}' < /dev/null`;
     } else {
-      // codex exec resume <sessionId> <prompt>
-      cmd = 'codex';
-      args = ['exec', 'resume', sessionId, prompt];
+      shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' < /dev/null`;
     }
 
-    console.log(`[ContinueSession] Running: ${cmd} ${args.join(' ')}`);
+    console.log(`[ContinueSession] Running: ${shellCmd} (cwd: ${cwd})`);
 
-    const env = { ...process.env, CLAUDECODE: undefined, CLAUDE_CODE_ENTRYPOINT: undefined };
+    const env = { ...process.env };
+    delete env.CLAUDECODE;
+    delete env.CLAUDE_CODE_ENTRYPOINT;
 
-    const child = execFile(cmd, args, {
+    // Ensure common paths are in PATH
+    if (env.PATH && !env.PATH.includes('/usr/local/bin')) {
+      env.PATH = `/usr/local/bin:${env.PATH}`;
+    }
+
+    exec(shellCmd, {
       cwd,
       env,
       timeout: 300000, // 5 min timeout
@@ -207,6 +213,7 @@ export class CommandChannel {
     }, (error, stdout, stderr) => {
       if (error) {
         console.error(`[ContinueSession] Error: ${error.message}`);
+        if (stderr) console.error(`[ContinueSession] stderr: ${stderr}`);
         this.send({
           type: 'session-error',
           requestId,
@@ -214,10 +221,13 @@ export class CommandChannel {
         });
       }
 
+      const output = stdout || stderr || '';
+      console.log(`[ContinueSession] Completed. Output length: ${output.length}`);
+
       this.send({
         type: 'session-output',
         requestId,
-        data: stdout || stderr || '',
+        data: output,
       });
 
       this.send({
