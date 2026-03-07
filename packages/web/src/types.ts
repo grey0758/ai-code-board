@@ -1,4 +1,4 @@
-export type ChatSource = 'claude' | 'codex' | 'openclaw';
+export type ChatSource = 'claude' | 'codex';
 
 export interface MachineInfo {
   id: string;

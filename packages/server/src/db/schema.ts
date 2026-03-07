@@ -20,7 +20,7 @@ export const sessions = sqliteTable('sessions', {
   id: text('id').notNull(),
   machineId: text('machine_id').notNull().references(() => machines.id),
   projectPath: text('project_path').notNull(),
-  source: text('source').notNull(), // 'claude' | 'codex' | 'openclaw'
+  source: text('source').notNull(), // 'claude' | 'codex'
   filePath: text('file_path').notNull(),
   messageCount: integer('message_count').default(0),
   firstMessageAt: text('first_message_at'),

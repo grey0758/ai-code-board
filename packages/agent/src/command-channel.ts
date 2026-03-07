@@ -1,5 +1,7 @@
 import WebSocket from 'ws';
 import { exec } from 'child_process';
+import { existsSync } from 'fs';
+import { dirname } from 'path';
 import { RemoteSession, type SessionRequest } from './remote-session.js';
 
 export class CommandChannel {
@@ -171,8 +173,64 @@ export class CommandChannel {
     }
   }
 
+  // Resolve real cwd for a claude session from its filePath
+  // filePath: /home/user/.claude/projects/-home-user-my-project/uuid.jsonl
+  // The dir name "-home-user-my-project" encodes the original path.
+  // We find a matching real directory by checking existence.
+  private resolveCwd(filePath: string | null, source: string, fallbackCwd: string): string {
+    if (source === 'claude' && filePath) {
+      // Extract the encoded project dir name
+      const match = filePath.match(/\.claude\/projects\/([^/]+)/);
+      if (match) {
+        const encoded = match[1]; // e.g. "-home-grey-test-kanban-test"
+        // Strategy: try progressively splitting from right, replacing only path separators
+        // The encoded form is: replace / with -, strip leading /
+        // So "-home-grey-test-kanban-test" could be /home/grey/test-kanban-test or /home/grey/test/kanban/test etc.
+        // We try the longest segments first (fewest splits = fewer /)
+        const decoded = this.decodeProjectDir(encoded);
+        if (decoded && existsSync(decoded)) {
+          return decoded;
+        }
+      }
+    }
+    return fallbackCwd;
+  }
+
+  // Try to decode a claude project directory name back to a real path
+  // by testing which combination of - being / vs literal - results in an existing directory
+  private decodeProjectDir(encoded: string): string | null {
+    // Remove leading -
+    const parts = encoded.replace(/^-/, '').split('-');
+    // Try to find the real path by testing combinations
+    // Most common: each - is a / (the naive approach)
+    // But we need to handle hyphens in directory names
+    // Strategy: DFS - try keeping each - as literal or as /
+    const results: string[] = [];
+    this.findValidPath(parts, 0, '', results);
+    // Return the first valid path found (shortest depth = most literal hyphens)
+    return results.length > 0 ? results[0] : '/' + parts.join('/');
+  }
+
+  private findValidPath(parts: string[], idx: number, current: string, results: string[]): void {
+    if (results.length > 0) return; // found one, stop
+    if (idx >= parts.length) {
+      const path = '/' + current;
+      if (existsSync(path)) results.push(path);
+      return;
+    }
+    if (idx === 0) {
+      this.findValidPath(parts, idx + 1, parts[idx], results);
+      return;
+    }
+    // Try hyphen as literal first (prefer longer path segments = real hyphens in names)
+    this.findValidPath(parts, idx + 1, current + '-' + parts[idx], results);
+    // Try hyphen as /
+    this.findValidPath(parts, idx + 1, current + '/' + parts[idx], results);
+  }
+
   private continueSession(msg: any) {
-    const { requestId, sessionId, source, prompt, cwd } = msg;
+    const { requestId, sessionId, source, prompt, filePath } = msg;
+    const cwd = this.resolveCwd(filePath, source, msg.cwd || process.env.HOME || '/tmp');
 
     this.send({
       type: 'session-started',
@@ -191,7 +249,7 @@ export class CommandChannel {
     if (source === 'claude') {
       shellCmd = `claude -r '${sessionId}' -p '${safePrompt}' < /dev/null`;
     } else {
-      shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' < /dev/null`;
+      shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check < /dev/null`;
     }
 
     console.log(`[ContinueSession] Running: ${shellCmd} (cwd: ${cwd})`);

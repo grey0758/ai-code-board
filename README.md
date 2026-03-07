@@ -1,6 +1,6 @@
 # Chat Sync Hub
 
-Multi-machine AI chat history synchronization system. Collects and syncs conversation logs from **Claude Code**, **Codex**, and **OpenClaw** across multiple machines into a central dashboard with real-time updates.
+Multi-machine AI chat history synchronization system. Collects and syncs conversation logs from **Claude Code** and **Codex** across multiple machines into a central dashboard with real-time updates.
 
 ## Screenshots
 
@@ -10,7 +10,7 @@ Overview of all synchronized machines, sessions, and message statistics.
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Sessions
-Browse all conversation sessions across machines, filtered by source (Claude/Codex/OpenClaw), with search and project grouping.
+Browse all conversation sessions across machines, filtered by source (Claude/Codex), with search and project grouping.
 
 ![Sessions](docs/screenshots/sessions.png)
 
@@ -31,7 +31,7 @@ Each machine runs an **Agent** that watches local JSONL chat files and increment
 
 ## Features
 
-- **Multi-source support** - Claude Code, Codex (GPT), OpenClaw sessions
+- **Multi-source support** - Claude Code, Codex (GPT) sessions
 - **Incremental sync** - Only reads new bytes from JSONL files using offset tracking
 - **Real-time updates** - WebSocket push to dashboard on new messages
 - **Multi-machine** - Unique machine ID + IP tracking, heartbeat monitoring
@@ -75,7 +75,7 @@ Open `http://YOUR_SERVER_IP:5173` in your browser.
 | Parameter | Default | Description |
 |---|---|---|
 | `--server` | `http://localhost:3000` | Central server URL |
-| `--dirs` | `~/.claude/projects,~/.codex/sessions,~/.openclaw/agents` | Watch directories (comma-separated) |
+| `--dirs` | `~/.claude/projects,~/.codex/sessions` | Watch directories (comma-separated) |
 | `--interval` | `3000` | Sync interval in ms |
 | `--heartbeat` | `30000` | Heartbeat interval in ms |
 | `--ssh-port` | `22` | SSH port (recorded for remote access) |
@@ -156,7 +156,7 @@ chat-sync-hub/
 │   │       └── ws/      # WebSocket handlers (dashboard + agent)
 │   ├── agent/           # Machine agent (file watcher + sync client)
 │   │   └── src/
-│   │       ├── parser.ts         # JSONL format parsers (Claude/Codex/OpenClaw)
+│   │       ├── parser.ts         # JSONL format parsers (Claude/Codex)
 │   │       ├── watcher.ts        # chokidar file watcher
 │   │       ├── reader.ts         # Incremental byte-offset reader
 │   │       ├── uploader.ts       # Batch HTTP uploader

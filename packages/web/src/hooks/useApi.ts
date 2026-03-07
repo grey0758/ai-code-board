@@ -198,7 +198,7 @@ export async function updateSession(
 export async function continueSession(
   machineId: string,
   sessionId: string,
-  source: 'claude' | 'codex' | 'openclaw',
+  source: 'claude' | 'codex',
   prompt: string,
   cwd?: string
 ) {

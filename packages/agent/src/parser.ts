@@ -3,7 +3,6 @@ import type { ChatMessage, ChatSource } from '@chat-sync/shared';
 export function detectSource(filePath: string): ChatSource {
   if (filePath.includes('.claude/')) return 'claude';
   if (filePath.includes('.codex/')) return 'codex';
-  if (filePath.includes('.openclaw/')) return 'openclaw';
   return 'claude'; // default
 }
 
@@ -17,8 +16,6 @@ export function extractSessionId(filePath: string, source: ChatSource): string {
       // rollout-2026-02-26T14-13-46-UUID.jsonl -> extract UUID part
       const match = filename.match(/rollout-[\dT-]+-(.+)\.jsonl/);
       return match ? match[1] : filename.replace('.jsonl', '');
-    case 'openclaw':
-      return filename.replace('.jsonl', '');
   }
 }
 
@@ -35,9 +32,6 @@ export function extractProjectPath(filePath: string, source: ChatSource): string
     }
     case 'codex': {
       // Codex doesn't have per-project dirs, use session cwd from meta
-      return filePath;
-    }
-    case 'openclaw': {
       return filePath;
     }
   }
@@ -132,21 +126,6 @@ export function parseLine(
         };
       }
 
-      case 'openclaw': {
-        const type = obj.type || 'unknown';
-        let content: string | null = null;
-        const timestamp = obj.timestamp || null;
-
-        if (obj.content) {
-          content = extractTextContent(obj.content);
-        } else if (obj.text) {
-          content = obj.text;
-        }
-
-        return {
-          sessionId, machineId, lineNumber, type, content, rawJson: obj, timestamp,
-        };
-      }
     }
   } catch {
     return null;

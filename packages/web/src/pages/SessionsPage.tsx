@@ -15,7 +15,6 @@ const sourceConfig: Record<string, { label: string; color: string; activeClass: 
   all: { label: 'All', color: '', activeClass: 'bg-brand/10 text-brand' },
   claude: { label: 'Claude', color: 'text-[#D97706]', activeClass: 'bg-[#D97706]/15 text-[#D97706]' },
   codex: { label: 'Codex', color: 'text-[#10B981]', activeClass: 'bg-[#10B981]/15 text-[#10B981]' },
-  openclaw: { label: 'OpenClaw', color: 'text-[#8B5CF6]', activeClass: 'bg-[#8B5CF6]/15 text-[#8B5CF6]' },
 };
 
 export function SessionsPage({ machines, onSessionUpdated }: SessionsPageProps) {
@@ -63,9 +62,6 @@ export function SessionsPage({ machines, onSessionUpdated }: SessionsPageProps) 
       if (s.source === 'codex') {
         const match = s.filePath.match(/sessions\/(\d{4}\/\d{2}\/\d{2})\//);
         key = match ? `codex/${match[1]}` : 'codex/other';
-      } else if (s.source === 'openclaw') {
-        const match = s.filePath.match(/agents\/([^/]+)\//);
-        key = match ? `openclaw/${match[1]}` : 'openclaw/other';
       } else {
         key = s.projectPath || 'unknown';
       }

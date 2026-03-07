@@ -26,7 +26,6 @@ interface SessionCardProps {
 const sourceColors: Record<string, string> = {
   claude: 'bg-[#D97706]/15 text-[#D97706]',
   codex: 'bg-[#10B981]/15 text-[#10B981]',
-  openclaw: 'bg-[#8B5CF6]/15 text-[#8B5CF6]',
 };
 
 export function SessionCard({ session, machineName, className, onUpdated }: SessionCardProps) {

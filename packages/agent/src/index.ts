@@ -29,7 +29,6 @@ const home = homedir();
 const DEFAULT_WATCH_DIRS = [
   join(home, '.claude', 'projects'),
   join(home, '.codex', 'sessions'),
-  join(home, '.openclaw', 'agents'),
 ];
 const watchDirs = customDirs ? customDirs.split(',') : DEFAULT_WATCH_DIRS;
 

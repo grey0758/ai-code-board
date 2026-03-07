@@ -177,8 +177,7 @@ export function SessionDetailPage({ machines, sessions, onSessionUpdated, wsOn }
                 <Badge
                   className={cn('text-[10px] capitalize',
                     session.source === 'claude' ? 'bg-[#D97706]/15 text-[#D97706]' :
-                    session.source === 'codex' ? 'bg-[#10B981]/15 text-[#10B981]' :
-                    'bg-[#8B5CF6]/15 text-[#8B5CF6]'
+                    'bg-[#10B981]/15 text-[#10B981]'
                   )}
                   variant="secondary"
                 >
@@ -229,7 +228,7 @@ export function SessionDetailPage({ machines, sessions, onSessionUpdated, wsOn }
               setSending(true);
               setSendError(null);
               try {
-                await continueSession(machineId, sessionId!, session.source, prompt);
+                await continueSession(machineId, sessionId!, session.source, prompt, session.projectPath);
                 setInputValue('');
               } catch (err: any) {
                 setSendError(err.message || 'Failed to send');

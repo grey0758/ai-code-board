@@ -12,7 +12,7 @@ import {
   Eye,
   House,
 } from '@phosphor-icons/react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/Badge';
 import { renameMachine } from '@/hooks/useApi';
@@ -28,7 +28,6 @@ interface SidebarProps {
 const sourceConfig: Record<string, { label: string; color: string }> = {
   claude: { label: 'Claude', color: 'text-[#D97706]' },
   codex: { label: 'Codex', color: 'text-[#10B981]' },
-  openclaw: { label: 'OpenClaw', color: 'text-[#8B5CF6]' },
 };
 
 function getSessionLabel(s: SessionInfo): string {
@@ -49,6 +48,7 @@ function MachineItem({
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const navigate = useNavigate();
 
   const displayName = machine.displayName || machine.hostname;
 
@@ -73,18 +73,20 @@ function MachineItem({
   return (
     <div>
       <div className="flex items-center gap-0.5 group">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 rounded-lg text-sm hover:bg-bg-hover transition-colors"
-        >
-          <CaretRight
-            size={12}
-            className={cn('shrink-0 text-text-low transition-transform', expanded && 'rotate-90')}
-          />
+        <div className="flex items-center flex-1 min-w-0 px-2 py-1.5 rounded-lg text-sm hover:bg-bg-hover transition-colors">
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+            className="shrink-0 p-0.5 mr-1 rounded hover:bg-bg-active"
+          >
+            <CaretRight
+              size={12}
+              className={cn('text-text-low transition-transform', expanded && 'rotate-90')}
+            />
+          </button>
           <Circle
             size={8}
             weight="fill"
-            className={cn('shrink-0', machine.isOnline ? 'text-success' : 'text-text-low/30')}
+            className={cn('shrink-0 mr-1.5', machine.isOnline ? 'text-success' : 'text-text-low/30')}
           />
           {editing ? (
             <input
@@ -100,14 +102,17 @@ function MachineItem({
               className="flex-1 min-w-0 bg-bg-primary border border-brand rounded px-1 text-sm text-text-high outline-none"
             />
           ) : (
-            <span className="flex-1 min-w-0 truncate text-text-high font-medium text-left">
+            <button
+              onClick={() => navigate(`/machines/${machine.id}`)}
+              className="flex-1 min-w-0 truncate text-text-high font-medium text-left hover:text-brand transition-colors"
+            >
               {displayName}
-            </span>
+            </button>
           )}
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
+          <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0 ml-1">
             {sessions.length}
           </Badge>
-        </button>
+        </div>
         {editing ? (
           <div className="flex items-center shrink-0">
             <button onClick={handleRename} className="p-0.5 rounded hover:bg-bg-hover text-success"><Check size={13} /></button>
@@ -148,9 +153,6 @@ function SourceGroup({ source, sessions, machineId }: { source: string; sessions
       if (source === 'codex') {
         const match = s.filePath.match(/sessions\/(\d{4}\/\d{2}\/\d{2})\//);
         folder = match ? match[1] : 'other';
-      } else if (source === 'openclaw') {
-        const match = s.filePath.match(/agents\/([^/]+)\//);
-        folder = match ? match[1] : 'other';
       } else {
         folder = s.projectPath || 'unknown';
       }
@@ -185,7 +187,7 @@ function FolderItem({ folder, sessions, machineId, source }: { folder: string; s
   const [expanded, setExpanded] = useState(false);
 
   const shortName = useMemo(() => {
-    if (source === 'codex' || source === 'openclaw') return folder;
+    if (source === 'codex') return folder;
     const parts = folder.split('/').filter(Boolean);
     return parts.length > 2 ? parts.slice(-2).join('/') : folder;
   }, [folder, source]);

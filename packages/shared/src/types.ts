@@ -1,5 +1,5 @@
 // Source types for different AI tools
-export type ChatSource = 'claude' | 'codex' | 'openclaw';
+export type ChatSource = 'claude' | 'codex';
 
 // Machine registration
 export interface MachineInfo {

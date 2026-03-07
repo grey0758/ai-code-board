@@ -1,6 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { agentSockets, dashboardBroadcast } from '../ws/index.js';
+import { db } from '../db/index.js';
+import { sessions } from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
 import crypto from 'crypto';
+
 
 export async function remoteRoutes(app: FastifyInstance) {
   // Start a remote session on a specific machine
@@ -100,6 +104,12 @@ export async function remoteRoutes(app: FastifyInstance) {
       });
     }
 
+    // Look up the session's filePath from DB to pass to agent for cwd resolution
+    const session = db.select({ filePath: sessions.filePath })
+      .from(sessions)
+      .where(and(eq(sessions.id, sessionId), eq(sessions.machineId, machineId)))
+      .get();
+
     const requestId = crypto.randomUUID();
 
     agentWs.send(JSON.stringify({
@@ -109,6 +119,7 @@ export async function remoteRoutes(app: FastifyInstance) {
       source,
       prompt,
       cwd: cwd || process.env.HOME || '/tmp',
+      filePath: session?.filePath || null,
     }));
 
     return { success: true, requestId };

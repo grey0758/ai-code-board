@@ -20,7 +20,6 @@ interface DashboardPageProps {
 const sourceConfig: Record<string, { label: string; color: string; badgeCls: string }> = {
   claude: { label: 'Claude', color: 'text-[#D97706]', badgeCls: 'bg-[#D97706]/15 text-[#D97706]' },
   codex: { label: 'Codex', color: 'text-[#10B981]', badgeCls: 'bg-[#10B981]/15 text-[#10B981]' },
-  openclaw: { label: 'OpenClaw', color: 'text-[#8B5CF6]', badgeCls: 'bg-[#8B5CF6]/15 text-[#8B5CF6]' },
 };
 
 export function DashboardPage({ machines, sessions }: DashboardPageProps) {
