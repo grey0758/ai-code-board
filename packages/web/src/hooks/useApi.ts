@@ -219,3 +219,41 @@ export async function backfillFirstMessages() {
   if (!res.ok) throw new Error('Failed to backfill');
   return res.json();
 }
+
+export interface DirEntry {
+  name: string;
+  isDirectory: boolean;
+  path: string;
+}
+
+export async function browseDirectory(machineId: string, path?: string): Promise<{ path: string; items: DirEntry[] }> {
+  const res = await fetch(`${API_BASE}/remote/browse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ machineId, path }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data;
+}
+
+export async function newSession(
+  machineId: string,
+  source: 'claude' | 'codex',
+  prompt: string,
+  cwd: string
+) {
+  const res = await fetch(`${API_BASE}/remote/new-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ machineId, source, prompt, cwd }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}

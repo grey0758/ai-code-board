@@ -11,6 +11,9 @@ export const agentSockets = new Map<string, WebSocket>();
 // Dashboard clients subscribed to a specific remote session: requestId -> Set<WebSocket>
 const sessionSubscribers = new Map<string, Set<WebSocket>>();
 
+// Pending request-response callbacks for agent commands (e.g. directory listing)
+export const pendingRequests = new Map<string, { resolve: (data: any) => void; timer: ReturnType<typeof setTimeout> }>();
+
 export function broadcast(event: WsEvent) {
   const data = JSON.stringify(event);
   for (const client of dashboardClients) {
@@ -121,6 +124,14 @@ export async function setupWebSocket(app: FastifyInstance) {
             machineId,
           });
           return;
+        }
+
+        // Resolve pending request-response (e.g. directory-listing)
+        if (msg.requestId && pendingRequests.has(msg.requestId)) {
+          const pending = pendingRequests.get(msg.requestId)!;
+          clearTimeout(pending.timer);
+          pendingRequests.delete(msg.requestId);
+          pending.resolve(msg);
         }
 
         // Relay session output/events from agent to dashboard clients

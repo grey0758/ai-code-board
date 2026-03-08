@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { agentSockets, dashboardBroadcast } from '../ws/index.js';
+import { agentSockets, dashboardBroadcast, pendingRequests } from '../ws/index.js';
 import { db } from '../db/index.js';
 import { sessions } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
@@ -120,6 +120,80 @@ export async function remoteRoutes(app: FastifyInstance) {
       prompt,
       cwd: cwd || process.env.HOME || '/tmp',
       filePath: session?.filePath || null,
+    }));
+
+    return { success: true, requestId };
+  });
+
+  // Browse directory on a remote machine
+  app.post<{
+    Body: {
+      machineId: string;
+      path?: string;
+    };
+  }>('/api/remote/browse', async (req, reply) => {
+    const { machineId, path } = req.body;
+    const agentWs = agentSockets.get(machineId);
+
+    if (!agentWs || agentWs.readyState !== 1) {
+      return reply.code(404).send({
+        success: false,
+        error: `Machine ${machineId} is not connected`,
+      });
+    }
+
+    const requestId = crypto.randomUUID();
+
+    // Create a promise that resolves when the agent responds
+    const result = await new Promise<any>((resolve) => {
+      const timer = setTimeout(() => {
+        pendingRequests.delete(requestId);
+        resolve({ error: 'Timeout waiting for directory listing' });
+      }, 10000);
+
+      pendingRequests.set(requestId, { resolve, timer });
+
+      agentWs.send(JSON.stringify({
+        type: 'list-directory',
+        requestId,
+        path: path || null,
+      }));
+    });
+
+    if (result.error) {
+      return reply.code(500).send({ success: false, error: result.error });
+    }
+
+    return { success: true, data: { path: result.path, items: result.items } };
+  });
+
+  // Start a new conversation on a remote machine
+  app.post<{
+    Body: {
+      machineId: string;
+      source: 'claude' | 'codex';
+      prompt: string;
+      cwd: string;
+    };
+  }>('/api/remote/new-session', async (req, reply) => {
+    const { machineId, source, prompt, cwd } = req.body;
+    const agentWs = agentSockets.get(machineId);
+
+    if (!agentWs || agentWs.readyState !== 1) {
+      return reply.code(404).send({
+        success: false,
+        error: `Machine ${machineId} is not connected`,
+      });
+    }
+
+    const requestId = crypto.randomUUID();
+
+    agentWs.send(JSON.stringify({
+      type: 'new-session',
+      requestId,
+      source,
+      prompt,
+      cwd,
     }));
 
     return { success: true, requestId };

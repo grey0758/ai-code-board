@@ -11,6 +11,7 @@ import {
   X,
   Folder,
   CaretRight,
+  Plus,
 } from '@phosphor-icons/react';
 import { useSessions, renameMachine } from '@/hooks/useApi';
 import { SessionCard } from '@/components/chat/SessionCard';
@@ -20,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
 import type { MachineInfo } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
+import { NewConversationDialog } from '@/components/chat/NewConversationDialog';
 
 interface MachineDetailPageProps {
   machines: MachineInfo[];
@@ -39,6 +41,7 @@ export function MachineDetailPage({ machines, onSessionUpdated }: MachineDetailP
   const [sourceFilter, setSourceFilter] = useState('all');
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [showNewConversation, setShowNewConversation] = useState(false);
 
   if (!machine) {
     return (
@@ -155,6 +158,16 @@ export function MachineDetailPage({ machines, onSessionUpdated }: MachineDetailP
             machine.isOnline ? 'status-online' : 'status-offline'
           )}
         />
+
+        {machine.isOnline && (
+          <button
+            onClick={() => setShowNewConversation(true)}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand/80 transition-colors"
+          >
+            <Plus size={14} weight="bold" />
+            New Conversation
+          </button>
+        )}
       </div>
 
       {/* Machine Info */}
@@ -266,6 +279,18 @@ export function MachineDetailPage({ machines, onSessionUpdated }: MachineDetailP
           </div>
         )}
       </div>
+
+      {showNewConversation && machineId && (
+        <NewConversationDialog
+          machineId={machineId}
+          machineName={displayName}
+          onClose={() => setShowNewConversation(false)}
+          onStarted={() => {
+            // Refresh sessions after a delay to allow sync
+            setTimeout(onSessionUpdated, 5000);
+          }}
+        />
+      )}
     </div>
   );
 }

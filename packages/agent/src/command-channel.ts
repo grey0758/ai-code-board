@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import { exec } from 'child_process';
-import { existsSync } from 'fs';
-import { dirname } from 'path';
+import { existsSync, readdirSync, statSync } from 'fs';
+import { dirname, join } from 'path';
 import { RemoteSession, type SessionRequest } from './remote-session.js';
 
 export class CommandChannel {
@@ -94,6 +94,12 @@ export class CommandChannel {
         break;
       case 'list-sessions':
         this.listSessions(msg);
+        break;
+      case 'list-directory':
+        this.listDirectory(msg);
+        break;
+      case 'new-session':
+        this.newSession(msg);
         break;
     }
   }
@@ -302,6 +308,105 @@ export class CommandChannel {
       type: 'active-sessions',
       requestId: msg.requestId,
       sessions,
+    });
+  }
+
+  private listDirectory(msg: any) {
+    const { requestId, path: dirPath } = msg;
+    const targetPath = dirPath || process.env.HOME || '/';
+
+    try {
+      const entries = readdirSync(targetPath, { withFileTypes: true });
+      const items = entries
+        .filter((e) => !e.name.startsWith('.'))
+        .map((e) => ({
+          name: e.name,
+          isDirectory: e.isDirectory(),
+          path: join(targetPath, e.name),
+        }))
+        .sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+
+      this.send({
+        type: 'directory-listing',
+        requestId,
+        path: targetPath,
+        items,
+      });
+    } catch (error: any) {
+      this.send({
+        type: 'directory-listing',
+        requestId,
+        path: targetPath,
+        items: [],
+        error: error.message,
+      });
+    }
+  }
+
+  private newSession(msg: any) {
+    const { requestId, source, prompt, cwd } = msg;
+    const targetCwd = cwd || process.env.HOME || '/tmp';
+
+    this.send({
+      type: 'session-started',
+      requestId,
+      tool: source,
+      cwd: targetCwd,
+      mode: 'new',
+    });
+
+    const safePrompt = prompt.replace(/'/g, "'\\''");
+
+    let shellCmd: string;
+    if (source === 'claude') {
+      shellCmd = `claude -p '${safePrompt}' < /dev/null`;
+    } else {
+      shellCmd = `codex exec '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
+    }
+
+    console.log(`[NewSession] Running: ${shellCmd} (cwd: ${targetCwd})`);
+
+    const env = { ...process.env };
+    delete env.CLAUDECODE;
+    delete env.CLAUDE_CODE_ENTRYPOINT;
+
+    if (env.PATH && !env.PATH.includes('/usr/local/bin')) {
+      env.PATH = `/usr/local/bin:${env.PATH}`;
+    }
+
+    exec(shellCmd, {
+      cwd: targetCwd,
+      env,
+      timeout: 300000,
+      maxBuffer: 10 * 1024 * 1024,
+    }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[NewSession] Error: ${error.message}`);
+        if (stderr) console.error(`[NewSession] stderr: ${stderr}`);
+        this.send({
+          type: 'session-error',
+          requestId,
+          error: error.message,
+        });
+      }
+
+      const output = stdout || stderr || '';
+      console.log(`[NewSession] Completed. Output length: ${output.length}`);
+
+      this.send({
+        type: 'session-output',
+        requestId,
+        data: output,
+      });
+
+      this.send({
+        type: 'session-exit',
+        requestId,
+        exitCode: error ? (error as any).code || 1 : 0,
+      });
     });
   }
 }
