@@ -253,9 +253,9 @@ export class CommandChannel {
     const safePrompt = prompt.replace(/'/g, "'\\''");
 
     if (source === 'claude') {
-      shellCmd = `claude -r '${sessionId}' -p '${safePrompt}' < /dev/null`;
+      shellCmd = `claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions < /dev/null`;
     } else {
-      shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check < /dev/null`;
+      shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
     }
 
     console.log(`[ContinueSession] Running: ${shellCmd} (cwd: ${cwd})`);
@@ -272,7 +272,7 @@ export class CommandChannel {
     exec(shellCmd, {
       cwd,
       env,
-      timeout: 300000, // 5 min timeout
+      timeout: 3600000, // 1 hour timeout
       maxBuffer: 10 * 1024 * 1024,
     }, (error, stdout, stderr) => {
       if (error) {
@@ -362,7 +362,7 @@ export class CommandChannel {
 
     let shellCmd: string;
     if (source === 'claude') {
-      shellCmd = `claude -p '${safePrompt}' < /dev/null`;
+      shellCmd = `claude -p '${safePrompt}' --dangerously-skip-permissions < /dev/null`;
     } else {
       shellCmd = `codex exec '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
     }
