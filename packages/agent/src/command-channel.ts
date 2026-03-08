@@ -253,7 +253,7 @@ export class CommandChannel {
     const safePrompt = prompt.replace(/'/g, "'\\''");
 
     if (source === 'claude') {
-      shellCmd = `claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions < /dev/null`;
+      shellCmd = `echo 1 | claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions`;
     } else {
       shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
     }
@@ -362,7 +362,7 @@ export class CommandChannel {
 
     let shellCmd: string;
     if (source === 'claude') {
-      shellCmd = `claude -p '${safePrompt}' --dangerously-skip-permissions < /dev/null`;
+      shellCmd = `echo 1 | claude -p '${safePrompt}' --dangerously-skip-permissions`;
     } else {
       shellCmd = `codex exec '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
     }

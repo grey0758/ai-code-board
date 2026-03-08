@@ -282,18 +282,18 @@ export class CommandChannel {
     let shellCmd: string;
 
     if (isWin) {
-      // Windows: use cmd /c, no /dev/null redirect needed
+      // Windows: echo 1 | pipes "1" to auto-accept trust folder prompt
       const safePrompt = prompt.replace(/"/g, '\\"');
       if (source === 'claude') {
-        shellCmd = `claude -r "${sessionId}" -p "${safePrompt}" --dangerously-skip-permissions`;
+        shellCmd = `echo 1 | claude -r "${sessionId}" -p "${safePrompt}" --dangerously-skip-permissions`;
       } else {
         shellCmd = `codex exec resume "${sessionId}" "${safePrompt}" --skip-git-repo-check --full-auto`;
       }
     } else {
-      // Unix: escape single quotes
+      // Unix: echo 1 | pipes "1" to auto-accept trust folder prompt
       const safePrompt = prompt.replace(/'/g, "'\\''");
       if (source === 'claude') {
-        shellCmd = `claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions < /dev/null`;
+        shellCmd = `echo 1 | claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions`;
       } else {
         shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
       }
@@ -420,14 +420,14 @@ export class CommandChannel {
     if (isWin) {
       const safePrompt = prompt.replace(/"/g, '\\"');
       if (source === 'claude') {
-        shellCmd = `claude -p "${safePrompt}" --dangerously-skip-permissions`;
+        shellCmd = `echo 1 | claude -p "${safePrompt}" --dangerously-skip-permissions`;
       } else {
         shellCmd = `codex exec "${safePrompt}" --skip-git-repo-check --full-auto`;
       }
     } else {
       const safePrompt = prompt.replace(/'/g, "'\\''");
       if (source === 'claude') {
-        shellCmd = `claude -p '${safePrompt}' --dangerously-skip-permissions < /dev/null`;
+        shellCmd = `echo 1 | claude -p '${safePrompt}' --dangerously-skip-permissions`;
       } else {
         shellCmd = `codex exec '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
       }
