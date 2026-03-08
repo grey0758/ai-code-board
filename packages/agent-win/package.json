@@ -14,8 +14,10 @@
   "dependencies": {
     "@chat-sync/shared": "1.0.0",
     "chokidar": "^4.0.0",
-    "node-pty": "^1.1.0",
     "ws": "^8.19.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/ws": "^8.18.1",

@@ -1,19 +1,28 @@
-import * as pty from 'node-pty';
 import { EventEmitter } from 'events';
 import { platform } from 'os';
 
 const isWin = platform() === 'win32';
+
+// node-pty is optional — interactive PTY sessions won't work without it,
+// but exec-based continue/new sessions will still function fine.
+let pty: typeof import('node-pty') | null = null;
+try {
+  pty = await import('node-pty');
+} catch {
+  console.warn('[RemoteSession] node-pty not available — interactive PTY sessions disabled.');
+  console.warn('[RemoteSession] Continue/New sessions (exec mode) will still work.');
+}
 
 export interface SessionRequest {
   requestId: string;
   tool: 'claude' | 'codex';
   sessionId: string;
   cwd: string;
-  autoApprove?: boolean;  // auto-respond to auth prompts
+  autoApprove?: boolean;
 }
 
 export class RemoteSession extends EventEmitter {
-  private ptyProcess: pty.IPty | null = null;
+  private ptyProcess: import('node-pty').IPty | null = null;
   private outputBuffer = '';
   private closed = false;
 
@@ -25,14 +34,18 @@ export class RemoteSession extends EventEmitter {
   }
 
   start() {
+    if (!pty) {
+      this.emit('error', 'node-pty is not installed. Interactive PTY sessions are unavailable. Use exec-mode (continue/new session) instead.');
+      this.emit('exit', 1);
+      return;
+    }
+
     const { tool, sessionId, cwd, autoApprove } = this.request;
 
-    // Build command based on tool
     let shell: string;
     let args: string[];
 
     if (isWin) {
-      // On Windows, use .cmd extensions if tools are installed via npm
       shell = tool === 'claude' ? 'claude.cmd' : 'codex.cmd';
       args = ['--resume', sessionId];
     } else {
@@ -55,7 +68,6 @@ export class RemoteSession extends EventEmitter {
         },
       });
     } catch (err) {
-      // Fallback: try without .cmd extension on Windows
       if (isWin) {
         try {
           this.ptyProcess = pty.spawn(tool, args, {
@@ -81,7 +93,6 @@ export class RemoteSession extends EventEmitter {
       this.outputBuffer += data;
       this.emit('data', data);
 
-      // Auto-approve: detect permission/auth prompts
       if (autoApprove) {
         this.handleAutoApprove(data);
       }
@@ -116,9 +127,6 @@ export class RemoteSession extends EventEmitter {
   private handleAutoApprove(data: string) {
     const combined = this.outputBuffer;
 
-    // Common permission prompt patterns
-    // Claude: "Allow? [Y/n]", "Do you want to proceed? (y/N)"
-    // Also handles numbered selections like "(1) Allow (2) Deny"
     const patterns = [
       /Allow\?\s*\[Y\/n\]\s*$/i,
       /\(y\/N\)\s*$/i,
@@ -127,17 +135,14 @@ export class RemoteSession extends EventEmitter {
       /approve.*\?\s*$/i,
       /allow.*\?\s*$/i,
       /proceed.*\?\s*$/i,
-      // Numbered options: select 1 (usually "Allow" / "Yes")
       /\(1\).*(?:Allow|Yes|Accept|Approve).*\n.*(?:choice|select|option)/i,
       /(?:1\.|1\)).*(?:Allow|Yes|Accept).*\n.*[:>]\s*$/i,
     ];
 
     for (const pattern of patterns) {
       if (pattern.test(combined.slice(-500))) {
-        // Clear the buffer portion we matched against
         setTimeout(() => {
           if (!this.closed) {
-            // Try "y" first, fallback to "1"
             if (/\[Y\/n\]|y\/N|\(yes\/no\)/i.test(combined.slice(-500))) {
               this.write('y\n');
               console.log('[RemoteSession] Auto-approved with "y"');
@@ -147,13 +152,11 @@ export class RemoteSession extends EventEmitter {
             }
           }
         }, 300);
-        // Reset buffer to avoid re-matching
         this.outputBuffer = '';
         break;
       }
     }
 
-    // Keep buffer manageable
     if (this.outputBuffer.length > 2000) {
       this.outputBuffer = this.outputBuffer.slice(-1000);
     }
