@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
-import type { WsEvent } from '@chat-sync/shared';
+import type { WsEvent } from '@ai-code-board/shared';
 
 // Dashboard clients (browsers)
 const dashboardClients = new Set<WebSocket>();

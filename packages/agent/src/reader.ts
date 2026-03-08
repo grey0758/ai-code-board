@@ -1,7 +1,7 @@
 import { open, stat } from 'fs/promises';
 import { parseLine, detectSource, extractSessionId, extractProjectPath } from './parser.js';
 import { OffsetStore } from './offset-store.js';
-import type { ChatMessage, SyncPayload } from '@chat-sync/shared';
+import type { ChatMessage, SyncPayload } from '@ai-code-board/shared';
 
 export class IncrementalReader {
   constructor(

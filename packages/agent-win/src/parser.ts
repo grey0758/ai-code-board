@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatSource } from '@chat-sync/shared';
+import type { ChatMessage, ChatSource } from '@ai-code-board/shared';
 
 export function detectSource(filePath: string): ChatSource {
   // Normalize to forward slashes for consistent matching

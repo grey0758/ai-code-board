@@ -1,5 +1,5 @@
 {
-  "name": "@chat-sync/server",
+  "name": "@ai-code-board/server",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,7 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
-    "@chat-sync/shared": "1.0.0",
+    "@ai-code-board/shared": "1.0.0",
     "better-sqlite3": "^11.0.0",
     "drizzle-orm": "^0.39.0",
     "fastify": "^5.2.0",

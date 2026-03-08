@@ -1,5 +1,5 @@
 {
-  "name": "@chat-sync/shared",
+  "name": "@ai-code-board/shared",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",

@@ -1,4 +1,4 @@
-import type { ChatMessage, SyncPayload, ChatSource } from '@chat-sync/shared';
+import type { ChatMessage, SyncPayload, ChatSource } from '@ai-code-board/shared';
 
 interface PendingSession {
   sessionId: string;

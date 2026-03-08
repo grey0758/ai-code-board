@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { messages, sessions, syncOffsets } from '../db/schema.js';
 import { sql } from 'drizzle-orm';
-import type { SyncPayload } from '@chat-sync/shared';
+import type { SyncPayload } from '@ai-code-board/shared';
 import { broadcast } from '../ws/index.js';
 
 export async function syncRoutes(app: FastifyInstance) {

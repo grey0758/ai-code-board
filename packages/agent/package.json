@@ -1,5 +1,5 @@
 {
-  "name": "@chat-sync/agent",
+  "name": "@ai-code-board/agent",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +12,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@chat-sync/shared": "1.0.0",
+    "@ai-code-board/shared": "1.0.0",
     "chokidar": "^4.0.0",
     "node-pty": "^1.1.0",
     "ws": "^8.19.0"

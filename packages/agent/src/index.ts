@@ -8,7 +8,7 @@ import { Uploader } from './uploader.js';
 import { FileWatcher } from './watcher.js';
 import { Heartbeat } from './heartbeat.js';
 import { CommandChannel } from './command-channel.js';
-import type { MachineInfo } from '@chat-sync/shared';
+import type { MachineInfo } from '@ai-code-board/shared';
 
 // Parse CLI args
 const args = process.argv.slice(2);

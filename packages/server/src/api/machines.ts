@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { machines } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { MachineInfo, HeartbeatPayload } from '@chat-sync/shared';
+import type { MachineInfo, HeartbeatPayload } from '@ai-code-board/shared';
 import { broadcast } from '../ws/index.js';
 
 export async function machineRoutes(app: FastifyInstance) {
