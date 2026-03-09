@@ -112,15 +112,33 @@ export async function remoteRoutes(app: FastifyInstance) {
 
     const requestId = crypto.randomUUID();
 
-    agentWs.send(JSON.stringify({
-      type: 'continue-session',
-      requestId,
-      sessionId,
-      source,
-      prompt,
-      cwd: cwd || undefined,
-      filePath: session?.filePath || null,
-    }));
+    // Wait for agent to confirm session-started or report session-error
+    const result = await new Promise<any>((resolve) => {
+      const timer = setTimeout(() => {
+        pendingRequests.delete(requestId);
+        resolve({ type: 'timeout' });
+      }, 10000);
+
+      pendingRequests.set(requestId, { resolve, timer });
+
+      agentWs.send(JSON.stringify({
+        type: 'continue-session',
+        requestId,
+        sessionId,
+        source,
+        prompt,
+        cwd: cwd || undefined,
+        filePath: session?.filePath || null,
+      }));
+    });
+
+    if (result.type === 'session-error') {
+      return reply.code(500).send({ success: false, error: result.error || 'Session failed to start' });
+    }
+
+    if (result.type === 'timeout') {
+      return reply.code(504).send({ success: false, error: 'Timeout waiting for session to start' });
+    }
 
     return { success: true, requestId };
   });
@@ -168,6 +186,7 @@ export async function remoteRoutes(app: FastifyInstance) {
   });
 
   // Start a new conversation on a remote machine
+  // Waits for agent to confirm session-started or session-error before responding
   app.post<{
     Body: {
       machineId: string;
@@ -188,13 +207,31 @@ export async function remoteRoutes(app: FastifyInstance) {
 
     const requestId = crypto.randomUUID();
 
-    agentWs.send(JSON.stringify({
-      type: 'new-session',
-      requestId,
-      source,
-      prompt,
-      cwd,
-    }));
+    // Wait for agent to confirm session-started or report session-error
+    const result = await new Promise<any>((resolve) => {
+      const timer = setTimeout(() => {
+        pendingRequests.delete(requestId);
+        resolve({ type: 'timeout' });
+      }, 10000);
+
+      pendingRequests.set(requestId, { resolve, timer });
+
+      agentWs.send(JSON.stringify({
+        type: 'new-session',
+        requestId,
+        source,
+        prompt,
+        cwd,
+      }));
+    });
+
+    if (result.type === 'session-error') {
+      return reply.code(500).send({ success: false, error: result.error || 'Session failed to start' });
+    }
+
+    if (result.type === 'timeout') {
+      return reply.code(504).send({ success: false, error: 'Timeout waiting for session to start' });
+    }
 
     return { success: true, requestId };
   });

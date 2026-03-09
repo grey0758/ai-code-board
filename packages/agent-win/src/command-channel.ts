@@ -20,6 +20,9 @@ function getTmp(): string {
 /** Null device path */
 const NULL_DEVICE = isWin ? 'NUL' : '/dev/null';
 
+/** Windows shell path — use ComSpec to handle non-ASCII cwd */
+const winShell = isWin ? (process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe') : undefined;
+
 export class CommandChannel {
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -305,6 +308,11 @@ export class CommandChannel {
     const { requestId, sessionId, source, prompt, filePath } = msg;
     const cwd = this.resolveCwd(filePath, source, msg.cwd || getHome() || getTmp());
 
+    if (!existsSync(cwd)) {
+      this.send({ type: 'session-error', requestId, error: `Working directory does not exist: ${cwd}` });
+      return;
+    }
+
     this.send({
       type: 'session-started',
       requestId,
@@ -363,7 +371,7 @@ export class CommandChannel {
       maxBuffer: 10 * 1024 * 1024,
     };
     if (isWin) {
-      execOptions.shell = 'cmd.exe';
+      execOptions.shell = winShell;
       execOptions.windowsHide = true;
     }
 
@@ -474,6 +482,11 @@ export class CommandChannel {
     const { requestId, source, prompt, cwd } = msg;
     const targetCwd = cwd || getHome() || getTmp();
 
+    if (!existsSync(targetCwd)) {
+      this.send({ type: 'session-error', requestId, error: `Working directory does not exist: ${targetCwd}` });
+      return;
+    }
+
     this.send({
       type: 'session-started',
       requestId,
@@ -526,7 +539,7 @@ export class CommandChannel {
       maxBuffer: 10 * 1024 * 1024,
     };
     if (isWin) {
-      execOptions.shell = 'cmd.exe';
+      execOptions.shell = winShell;
       execOptions.windowsHide = true;
     }
 

@@ -7,6 +7,7 @@ import { RemoteSession, type SessionRequest } from './remote-session.js';
 
 const isWindows = platform() === 'win32';
 const homeDir = process.env.HOME || process.env.USERPROFILE || (isWindows ? 'C:\\' : '/');
+const winShell = isWindows ? (process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe') : undefined;
 
 export class CommandChannel {
   private ws: WebSocket | null = null;
@@ -289,6 +290,12 @@ export class CommandChannel {
     const { requestId, sessionId, source, prompt, filePath } = msg;
     const cwd = this.resolveCwd(filePath, source, msg.cwd || homeDir);
 
+    // Pre-check cwd exists
+    if (!existsSync(cwd)) {
+      this.send({ type: 'session-error', requestId, error: `Working directory does not exist: ${cwd}` });
+      return;
+    }
+
     this.send({
       type: 'session-started',
       requestId,
@@ -332,7 +339,7 @@ export class CommandChannel {
     exec(shellCmd, {
       cwd,
       env,
-      shell: isWindows ? 'cmd.exe' : undefined,
+      shell: winShell,
       timeout: 3600000, // 1 hour timeout
       maxBuffer: 10 * 1024 * 1024,
     }, (error, stdout, stderr) => {
@@ -443,6 +450,12 @@ export class CommandChannel {
     const { requestId, source, prompt, cwd } = msg;
     const targetCwd = cwd || homeDir;
 
+    // Pre-check cwd exists
+    if (!existsSync(targetCwd)) {
+      this.send({ type: 'session-error', requestId, error: `Working directory does not exist: ${targetCwd}` });
+      return;
+    }
+
     this.send({
       type: 'session-started',
       requestId,
@@ -481,7 +494,7 @@ export class CommandChannel {
     exec(shellCmd, {
       cwd: targetCwd,
       env,
-      shell: isWindows ? 'cmd.exe' : undefined,
+      shell: winShell,
       timeout: 300000,
       maxBuffer: 10 * 1024 * 1024,
     }, (error, stdout, stderr) => {
