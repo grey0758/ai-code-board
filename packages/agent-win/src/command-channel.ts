@@ -23,6 +23,8 @@ const NULL_DEVICE = isWin ? 'NUL' : '/dev/null';
 export class CommandChannel {
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private pongReceived = true;
   private activeSessions = new Map<string, RemoteSession>();
 
   constructor(
@@ -36,6 +38,7 @@ export class CommandChannel {
 
   stop() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.ws) this.ws.close();
     for (const session of this.activeSessions.values()) {
       session.kill();
@@ -61,6 +64,7 @@ export class CommandChannel {
         type: 'agent-identify',
         machineId: this.machineId,
       });
+      this.startPingPong();
     });
 
     this.ws.on('message', (raw) => {
@@ -70,8 +74,13 @@ export class CommandChannel {
       } catch {}
     });
 
+    this.ws.on('pong', () => {
+      this.pongReceived = true;
+    });
+
     this.ws.on('close', () => {
       console.log('[CommandChannel] Disconnected');
+      this.stopPingPong();
       this.scheduleReconnect();
     });
 
@@ -80,7 +89,33 @@ export class CommandChannel {
     });
   }
 
+  private startPingPong() {
+    this.stopPingPong();
+    this.pongReceived = true;
+    this.pingTimer = setInterval(() => {
+      if (!this.pongReceived) {
+        console.log('[CommandChannel] No pong received, reconnecting...');
+        this.ws?.terminate();
+        return;
+      }
+      this.pongReceived = false;
+      try {
+        this.ws?.ping();
+      } catch {
+        this.ws?.terminate();
+      }
+    }, 30000);
+  }
+
+  private stopPingPong() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+
   private scheduleReconnect() {
+    this.stopPingPong();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = setTimeout(() => this.connect(), 5000);
   }
@@ -371,6 +406,20 @@ export class CommandChannel {
 
   private listDirectory(msg: any) {
     const { requestId, path: dirPath } = msg;
+
+    // On Windows, if no path or path is "/" (from Unix-oriented UI), list drives
+    if (isWin && (!dirPath || dirPath === '/')) {
+      const drives = this.listWindowsDrives();
+      this.send({
+        type: 'directory-listing',
+        requestId,
+        path: '/',
+        isWindows: true,
+        items: drives,
+      });
+      return;
+    }
+
     const targetPath = dirPath || getHome() || (isWin ? 'C:\\' : '/');
 
     try {
@@ -391,6 +440,7 @@ export class CommandChannel {
         type: 'directory-listing',
         requestId,
         path: targetPath,
+        isWindows: isWin,
         items,
       });
     } catch (error: any) {
@@ -398,10 +448,26 @@ export class CommandChannel {
         type: 'directory-listing',
         requestId,
         path: targetPath,
+        isWindows: isWin,
         items: [],
         error: error.message,
       });
     }
+  }
+
+  private listWindowsDrives(): Array<{ name: string; isDirectory: boolean; path: string }> {
+    const drives: Array<{ name: string; isDirectory: boolean; path: string }> = [];
+    for (let code = 65; code <= 90; code++) {
+      const letter = String.fromCharCode(code);
+      const drivePath = `${letter}:\\`;
+      try {
+        readdirSync(drivePath);
+        drives.push({ name: `${letter}:`, isDirectory: true, path: drivePath });
+      } catch {
+        // Drive doesn't exist or not accessible
+      }
+    }
+    return drives;
   }
 
   private newSession(msg: any) {
