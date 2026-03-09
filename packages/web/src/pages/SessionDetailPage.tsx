@@ -47,8 +47,8 @@ export function SessionDetailPage({ machines, sessions, onSessionUpdated, wsOn }
   // Auto-refresh messages when WebSocket receives new-messages for this session
   useEffect(() => {
     if (!wsOn) return;
-    return wsOn('new-messages', (data: unknown) => {
-      const msgs = data as Array<{ sessionId?: string }>;
+    return wsOn('new-messages', (event: unknown) => {
+      const { data: msgs } = event as { data?: Array<{ sessionId?: string }> };
       if (msgs?.some((m) => m.sessionId === sessionId)) {
         refreshMessages();
       }
@@ -66,6 +66,33 @@ export function SessionDetailPage({ machines, sessions, onSessionUpdated, wsOn }
       }, 3000);
     });
   }, [wsOn, refreshMessages]);
+
+  // Timeout fallback: poll for new messages while sending, auto-clear after response arrives
+  useEffect(() => {
+    if (!sending) return;
+    const startCount = messages.length;
+    const interval = setInterval(() => {
+      refreshMessages();
+    }, 3000);
+    // Hard timeout: clear sending state after 120s no matter what
+    const timeout = setTimeout(() => {
+      setSending(false);
+    }, 120000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [sending, refreshMessages]);
+
+  // Auto-clear sending when new messages arrive
+  useEffect(() => {
+    if (sending && messages.length > 0) {
+      const lastMsg = [...messages].sort((a, b) => b.lineNumber - a.lineNumber)[0];
+      if (lastMsg && lastMsg.type === 'assistant') {
+        setSending(false);
+      }
+    }
+  }, [messages, sending]);
 
   useEffect(() => {
     if (!loading && bottomRef.current) {

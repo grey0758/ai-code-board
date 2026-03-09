@@ -148,7 +148,7 @@ export function useWebSocket() {
         const parsed = JSON.parse(event.data);
         const listeners = listenersRef.current.get(parsed.type);
         if (listeners) {
-          listeners.forEach((fn) => fn(parsed.data));
+          listeners.forEach((fn) => fn(parsed));
         }
       } catch {
         // ignore parse errors
