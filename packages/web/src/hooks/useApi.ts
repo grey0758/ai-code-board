@@ -63,6 +63,8 @@ export function useSessions(machineId?: string) {
 
   useEffect(() => {
     refresh();
+    const timer = setInterval(refresh, 10000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
   return { sessions, loading, refresh };
@@ -226,7 +228,7 @@ export interface DirEntry {
   path: string;
 }
 
-export async function browseDirectory(machineId: string, path?: string): Promise<{ path: string; items: DirEntry[] }> {
+export async function browseDirectory(machineId: string, path?: string): Promise<{ path: string; items: DirEntry[]; isWindows?: boolean }> {
   const res = await fetch(`${API_BASE}/remote/browse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -118,7 +118,7 @@ export async function remoteRoutes(app: FastifyInstance) {
       sessionId,
       source,
       prompt,
-      cwd: cwd || process.env.HOME || '/tmp',
+      cwd: cwd || undefined,
       filePath: session?.filePath || null,
     }));
 
@@ -164,7 +164,7 @@ export async function remoteRoutes(app: FastifyInstance) {
       return reply.code(500).send({ success: false, error: result.error });
     }
 
-    return { success: true, data: { path: result.path, items: result.items } };
+    return { success: true, data: { path: result.path, items: result.items, isWindows: result.isWindows || false } };
   });
 
   // Start a new conversation on a remote machine

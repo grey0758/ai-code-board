@@ -18,6 +18,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   if (!message.content?.trim()) return null;
 
+  // Hide system-injected codex messages (AGENTS.md, permissions, skills, session_meta)
+  if (message.type === 'session_meta') return null;
+  if (isUser && message.content) {
+    const c = message.content.trim();
+    if (c.startsWith('# AGENTS.md')) return null;
+    if (c.startsWith('<permissions instructions>')) return null;
+    if (c.startsWith('# Instructions')) return null;
+  }
+
   return (
     <div
       className={cn(

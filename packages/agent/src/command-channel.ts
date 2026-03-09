@@ -374,6 +374,20 @@ export class CommandChannel {
 
   private listDirectory(msg: any) {
     const { requestId, path: dirPath } = msg;
+
+    // On Windows, if no path or path is "/" (from Unix-oriented UI), list drives
+    if (isWindows && (!dirPath || dirPath === '/')) {
+      const drives = this.listWindowsDrives();
+      this.send({
+        type: 'directory-listing',
+        requestId,
+        path: '/',
+        isWindows: true,
+        items: drives,
+      });
+      return;
+    }
+
     const targetPath = dirPath || homeDir;
 
     try {
@@ -394,6 +408,7 @@ export class CommandChannel {
         type: 'directory-listing',
         requestId,
         path: targetPath,
+        isWindows,
         items,
       });
     } catch (error: any) {
@@ -401,10 +416,27 @@ export class CommandChannel {
         type: 'directory-listing',
         requestId,
         path: targetPath,
+        isWindows,
         items: [],
         error: error.message,
       });
     }
+  }
+
+  private listWindowsDrives(): Array<{ name: string; isDirectory: boolean; path: string }> {
+    const drives: Array<{ name: string; isDirectory: boolean; path: string }> = [];
+    // Check common drive letters A-Z
+    for (let code = 65; code <= 90; code++) {
+      const letter = String.fromCharCode(code);
+      const drivePath = `${letter}:\\`;
+      try {
+        readdirSync(drivePath);
+        drives.push({ name: `${letter}:`, isDirectory: true, path: drivePath });
+      } catch {
+        // Drive doesn't exist or not accessible
+      }
+    }
+    return drives;
   }
 
   private newSession(msg: any) {

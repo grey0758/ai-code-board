@@ -19,6 +19,67 @@ interface NewConversationDialogProps {
   onStarted: () => void;
 }
 
+/** Check if a path looks like a Windows drive root (e.g. "C:\") */
+function isDriveRoot(path: string): boolean {
+  return /^[A-Za-z]:\\?$/.test(path);
+}
+
+/** Check if we're at the virtual root (drive selector level on Windows, or "/" on Unix) */
+function isAtRoot(path: string, isWindows: boolean): boolean {
+  if (isWindows) return path === '/';
+  return path === '/';
+}
+
+/** Split a path into breadcrumb segments, handling both Unix and Windows */
+function getPathSegments(path: string, isWindows: boolean): { name: string; path: string }[] {
+  if (isWindows) {
+    if (path === '/') return []; // drive selector level
+    // Windows path like C:\Users\foo
+    const normalized = path.replace(/\\/g, '/').replace(/\/$/, '');
+    const parts = normalized.split('/').filter(Boolean);
+    const segments: { name: string; path: string }[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (i === 0) {
+        // Drive letter: "C:" → "C:\"
+        segments.push({ name: parts[0], path: parts[0] + '\\' });
+      } else {
+        // Reconstruct Windows path
+        segments.push({
+          name: parts[i],
+          path: parts[0] + '\\' + parts.slice(1, i + 1).join('\\'),
+        });
+      }
+    }
+    return segments;
+  }
+  // Unix
+  const parts = path.split('/').filter(Boolean);
+  return parts.map((seg, i) => ({
+    name: seg,
+    path: '/' + parts.slice(0, i + 1).join('/'),
+  }));
+}
+
+/** Get parent path */
+function getParentPath(path: string, isWindows: boolean): string {
+  if (isWindows) {
+    // Drive root (C:\) → go to drive selector
+    if (isDriveRoot(path)) return '/';
+    // Remove last segment
+    const normalized = path.replace(/\\/g, '/').replace(/\/$/, '');
+    const lastSlash = normalized.lastIndexOf('/');
+    if (lastSlash <= 0) return '/';
+    const parent = normalized.substring(0, lastSlash);
+    // If parent is just "C:", make it "C:\"
+    if (/^[A-Za-z]:$/.test(parent)) return parent + '\\';
+    // Convert back to Windows separators
+    return parent.replace(/\//g, '\\');
+  }
+  // Unix
+  const parent = path.replace(/\/[^/]+\/?$/, '') || '/';
+  return parent;
+}
+
 export function NewConversationDialog({
   machineId,
   machineName,
@@ -33,6 +94,7 @@ export function NewConversationDialog({
   const [prompt, setPrompt] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [isWindowsAgent, setIsWindowsAgent] = useState(false);
 
   const loadDirectory = async (path?: string) => {
     setLoading(true);
@@ -41,6 +103,9 @@ export function NewConversationDialog({
       const result = await browseDirectory(machineId, path);
       setCurrentPath(result.path);
       setItems(result.items);
+      if (result.isWindows !== undefined) {
+        setIsWindowsAgent(result.isWindows);
+      }
     } catch (err: any) {
       setBrowseError(err.message);
     } finally {
@@ -57,8 +122,13 @@ export function NewConversationDialog({
   };
 
   const goUp = () => {
-    const parent = currentPath.replace(/\/[^/]+\/?$/, '') || '/';
+    const parent = getParentPath(currentPath, isWindowsAgent);
     loadDirectory(parent);
+  };
+
+  const goHome = () => {
+    // Navigate to root: "/" for Unix, or "/" which agent interprets as drive selector on Windows
+    loadDirectory('/');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,8 +148,8 @@ export function NewConversationDialog({
     }
   };
 
-  // Breadcrumb segments
-  const pathSegments = currentPath.split('/').filter(Boolean);
+  const pathSegments = getPathSegments(currentPath, isWindowsAgent);
+  const atRoot = isAtRoot(currentPath, isWindowsAgent);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -124,25 +194,23 @@ export function NewConversationDialog({
         {/* Breadcrumb */}
         <div className="px-5 py-2 flex items-center gap-1 text-xs text-text-low shrink-0 overflow-x-auto">
           <button
-            onClick={() => navigateTo('/')}
+            onClick={goHome}
             className="hover:text-brand shrink-0 p-0.5"
+            title={isWindowsAgent ? 'Drives' : 'Root'}
           >
             <House size={14} />
           </button>
-          {pathSegments.map((seg, i) => {
-            const segPath = '/' + pathSegments.slice(0, i + 1).join('/');
-            return (
-              <span key={segPath} className="flex items-center gap-1 shrink-0">
-                <span className="text-text-low">/</span>
-                <button
-                  onClick={() => navigateTo(segPath)}
-                  className="hover:text-brand hover:underline"
-                >
-                  {seg}
-                </button>
-              </span>
-            );
-          })}
+          {pathSegments.map((seg) => (
+            <span key={seg.path} className="flex items-center gap-1 shrink-0">
+              <span className="text-text-low">{isWindowsAgent ? '\\' : '/'}</span>
+              <button
+                onClick={() => navigateTo(seg.path)}
+                className="hover:text-brand hover:underline"
+              >
+                {seg.name}
+              </button>
+            </span>
+          ))}
         </div>
 
         {/* Directory listing */}
@@ -157,7 +225,7 @@ export function NewConversationDialog({
           ) : (
             <div className="space-y-0.5">
               {/* Go up */}
-              {currentPath !== '/' && (
+              {!atRoot && (
                 <button
                   onClick={goUp}
                   className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm hover:bg-bg-hover transition-colors text-text-normal"

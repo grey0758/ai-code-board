@@ -65,26 +65,35 @@ export async function queryRoutes(app: FastifyInstance) {
     return { success: true };
   });
 
-  // Backfill first_message for sessions that don't have it
+  // Backfill first_message for sessions that don't have a custom displayName
+  // Uses last user message as title, skipping AGENTS.md preamble
   app.post('/api/sessions/backfill-first-message', async () => {
-    const emptyOnes = db.select({ id: sessions.id, machineId: sessions.machineId })
+    const targets = db.select({ id: sessions.id, machineId: sessions.machineId, displayName: sessions.displayName })
       .from(sessions)
-      .where(isNull(sessions.firstMessage))
       .all();
 
     let updated = 0;
-    for (const s of emptyOnes) {
-      const firstMsg = db.select({ content: messages.content, type: messages.type })
+    for (const s of targets) {
+      // Skip sessions with custom displayName
+      if (s.displayName) continue;
+
+      const userMsgs = db.select({ content: messages.content, type: messages.type })
         .from(messages)
         .where(and(
           eq(messages.sessionId, s.id),
-          eq(messages.machineId, s.machineId)
+          eq(messages.machineId, s.machineId),
+          eq(messages.type, 'user')
         ))
-        .orderBy(asc(messages.lineNumber))
+        .orderBy(desc(messages.lineNumber))
         .limit(20)
         .all();
 
-      const userMsg = firstMsg.find(m => m.type === 'user' && m.content && m.content.trim());
+      const userMsg = userMsgs.find(m =>
+        m.content && m.content.trim()
+        && !m.content.startsWith('# AGENTS.md')
+        && !m.content.startsWith('# Instructions')
+        && m.content.length < 500
+      );
       if (userMsg) {
         db.update(sessions)
           .set({ firstMessage: userMsg.content!.slice(0, 200) })

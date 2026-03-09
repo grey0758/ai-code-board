@@ -42,12 +42,29 @@ export async function syncRoutes(app: FastifyInstance) {
       }
     }
 
-    // Update session message counts
+    // Update session message counts and auto-update title to last user message
     for (const s of sessionList) {
+      // Update message count and last_message_at
       db.run(sql`UPDATE sessions SET
         message_count = (SELECT COUNT(*) FROM messages WHERE session_id = ${s.sessionId} AND machine_id = ${machineId}),
         last_message_at = ${now}
         WHERE id = ${s.sessionId} AND machine_id = ${machineId}`);
+
+      // Auto-update firstMessage to the last user message (only if no custom displayName)
+      // Skip messages that start with AGENTS.md / system preamble
+      db.run(sql`UPDATE sessions SET
+        first_message = COALESCE(
+          (SELECT substr(content, 1, 200) FROM messages
+           WHERE session_id = ${s.sessionId} AND machine_id = ${machineId}
+             AND type = 'user' AND content IS NOT NULL AND content != ''
+             AND content NOT LIKE '# AGENTS.md%'
+             AND content NOT LIKE '# Instructions%'
+             AND length(content) < 500
+           ORDER BY line_number DESC LIMIT 1),
+          first_message
+        )
+        WHERE id = ${s.sessionId} AND machine_id = ${machineId}
+          AND display_name IS NULL`);
     }
 
     // Upsert offsets

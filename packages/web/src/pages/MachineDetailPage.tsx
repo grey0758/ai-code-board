@@ -286,8 +286,11 @@ export function MachineDetailPage({ machines, onSessionUpdated }: MachineDetailP
           machineName={displayName}
           onClose={() => setShowNewConversation(false)}
           onStarted={() => {
-            // Refresh sessions after a delay to allow sync
-            setTimeout(onSessionUpdated, 5000);
+            // Refresh sessions multiple times to catch sync completion
+            setTimeout(onSessionUpdated, 3000);
+            setTimeout(onSessionUpdated, 8000);
+            setTimeout(onSessionUpdated, 15000);
+            setTimeout(onSessionUpdated, 25000);
           }}
         />
       )}
