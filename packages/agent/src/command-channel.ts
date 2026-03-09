@@ -1,12 +1,18 @@
 import WebSocket from 'ws';
 import { exec } from 'child_process';
 import { existsSync, readdirSync, statSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, sep } from 'path';
+import { platform } from 'os';
 import { RemoteSession, type SessionRequest } from './remote-session.js';
+
+const isWindows = platform() === 'win32';
+const homeDir = process.env.HOME || process.env.USERPROFILE || (isWindows ? 'C:\\' : '/');
 
 export class CommandChannel {
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private pongReceived = true;
   private activeSessions = new Map<string, RemoteSession>();
 
   constructor(
@@ -20,6 +26,7 @@ export class CommandChannel {
 
   stop() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.ws) this.ws.close();
     for (const session of this.activeSessions.values()) {
       session.kill();
@@ -45,6 +52,8 @@ export class CommandChannel {
         type: 'agent-identify',
         machineId: this.machineId,
       });
+      // Start ping/pong heartbeat to detect dead connections
+      this.startPingPong();
     });
 
     this.ws.on('message', (raw) => {
@@ -54,8 +63,13 @@ export class CommandChannel {
       } catch {}
     });
 
+    this.ws.on('pong', () => {
+      this.pongReceived = true;
+    });
+
     this.ws.on('close', () => {
       console.log('[CommandChannel] Disconnected');
+      this.stopPingPong();
       this.scheduleReconnect();
     });
 
@@ -64,7 +78,35 @@ export class CommandChannel {
     });
   }
 
+  private startPingPong() {
+    this.stopPingPong();
+    this.pongReceived = true;
+    this.pingTimer = setInterval(() => {
+      if (!this.pongReceived) {
+        // No pong received since last ping — connection is dead
+        console.log('[CommandChannel] No pong received, reconnecting...');
+        this.ws?.terminate();
+        return;
+      }
+      this.pongReceived = false;
+      try {
+        this.ws?.ping();
+      } catch {
+        // ping failed, connection is dead
+        this.ws?.terminate();
+      }
+    }, 30000); // Check every 30 seconds
+  }
+
+  private stopPingPong() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+
   private scheduleReconnect() {
+    this.stopPingPong();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = setTimeout(() => this.connect(), 5000);
   }
@@ -109,7 +151,7 @@ export class CommandChannel {
       requestId: msg.requestId,
       tool: msg.tool || 'claude',
       sessionId: msg.sessionId,
-      cwd: msg.cwd || process.env.HOME || '/tmp',
+      cwd: msg.cwd || homeDir,
       autoApprove: msg.autoApprove ?? true,
     };
 
@@ -185,8 +227,8 @@ export class CommandChannel {
   // We find a matching real directory by checking existence.
   private resolveCwd(filePath: string | null, source: string, fallbackCwd: string): string {
     if (source === 'claude' && filePath) {
-      // Extract the encoded project dir name
-      const match = filePath.match(/\.claude\/projects\/([^/]+)/);
+      // Extract the encoded project dir name (handle both / and \ separators)
+      const match = filePath.match(/\.claude[/\\]projects[/\\]([^/\\]+)/);
       if (match) {
         const encoded = match[1]; // e.g. "-home-grey-test-kanban-test"
         // Strategy: try progressively splitting from right, replacing only path separators
@@ -213,15 +255,24 @@ export class CommandChannel {
     // Strategy: DFS - try keeping each - as literal or as /
     const results: string[] = [];
     this.findValidPath(parts, 0, '', results);
-    // Return the first valid path found (shortest depth = most literal hyphens)
-    return results.length > 0 ? results[0] : '/' + parts.join('/');
+    if (results.length > 0) return results[0];
+    // Fallback: naive join
+    const fallback = sep + parts.join(sep);
+    return fallback;
   }
 
   private findValidPath(parts: string[], idx: number, current: string, results: string[]): void {
     if (results.length > 0) return; // found one, stop
     if (idx >= parts.length) {
-      const path = '/' + current;
-      if (existsSync(path)) results.push(path);
+      // On Windows, check if first part is a drive letter (e.g. "C")
+      // encoded path like "-C-Users-foo" → parts = ["C", "Users", "foo"]
+      let testPath: string;
+      if (isWindows && /^[A-Za-z]$/.test(current.split(sep)[0])) {
+        testPath = current.replace(/^([A-Za-z])/, '$1:');
+      } else {
+        testPath = sep + current;
+      }
+      if (existsSync(testPath)) results.push(testPath);
       return;
     }
     if (idx === 0) {
@@ -230,13 +281,13 @@ export class CommandChannel {
     }
     // Try hyphen as literal first (prefer longer path segments = real hyphens in names)
     this.findValidPath(parts, idx + 1, current + '-' + parts[idx], results);
-    // Try hyphen as /
-    this.findValidPath(parts, idx + 1, current + '/' + parts[idx], results);
+    // Try hyphen as path separator
+    this.findValidPath(parts, idx + 1, current + sep + parts[idx], results);
   }
 
   private continueSession(msg: any) {
     const { requestId, sessionId, source, prompt, filePath } = msg;
-    const cwd = this.resolveCwd(filePath, source, msg.cwd || process.env.HOME || '/tmp');
+    const cwd = this.resolveCwd(filePath, source, msg.cwd || homeDir);
 
     this.send({
       type: 'session-started',
@@ -249,13 +300,22 @@ export class CommandChannel {
 
     let shellCmd: string;
 
-    // Escape single quotes in prompt for shell
-    const safePrompt = prompt.replace(/'/g, "'\\''");
-
-    if (source === 'claude') {
-      shellCmd = `echo 1 | claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions`;
+    if (isWindows) {
+      // Windows: use double quotes, escape inner double quotes
+      const safePrompt = prompt.replace(/"/g, '\\"');
+      if (source === 'claude') {
+        shellCmd = `echo 1 | claude -r "${sessionId}" -p "${safePrompt}" --dangerously-skip-permissions`;
+      } else {
+        shellCmd = `codex exec resume "${sessionId}" "${safePrompt}" --skip-git-repo-check --full-auto`;
+      }
     } else {
-      shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
+      // Unix: use single quotes, escape inner single quotes
+      const safePrompt = prompt.replace(/'/g, "'\\''");
+      if (source === 'claude') {
+        shellCmd = `echo 1 | claude -r '${sessionId}' -p '${safePrompt}' --dangerously-skip-permissions`;
+      } else {
+        shellCmd = `codex exec resume '${sessionId}' '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
+      }
     }
 
     console.log(`[ContinueSession] Running: ${shellCmd} (cwd: ${cwd})`);
@@ -265,13 +325,14 @@ export class CommandChannel {
     delete env.CLAUDE_CODE_ENTRYPOINT;
 
     // Ensure common paths are in PATH
-    if (env.PATH && !env.PATH.includes('/usr/local/bin')) {
+    if (!isWindows && env.PATH && !env.PATH.includes('/usr/local/bin')) {
       env.PATH = `/usr/local/bin:${env.PATH}`;
     }
 
     exec(shellCmd, {
       cwd,
       env,
+      shell: isWindows ? 'cmd.exe' : undefined,
       timeout: 3600000, // 1 hour timeout
       maxBuffer: 10 * 1024 * 1024,
     }, (error, stdout, stderr) => {
@@ -313,7 +374,7 @@ export class CommandChannel {
 
   private listDirectory(msg: any) {
     const { requestId, path: dirPath } = msg;
-    const targetPath = dirPath || process.env.HOME || '/';
+    const targetPath = dirPath || homeDir;
 
     try {
       const entries = readdirSync(targetPath, { withFileTypes: true });
@@ -348,7 +409,7 @@ export class CommandChannel {
 
   private newSession(msg: any) {
     const { requestId, source, prompt, cwd } = msg;
-    const targetCwd = cwd || process.env.HOME || '/tmp';
+    const targetCwd = cwd || homeDir;
 
     this.send({
       type: 'session-started',
@@ -358,13 +419,21 @@ export class CommandChannel {
       mode: 'new',
     });
 
-    const safePrompt = prompt.replace(/'/g, "'\\''");
-
     let shellCmd: string;
-    if (source === 'claude') {
-      shellCmd = `echo 1 | claude -p '${safePrompt}' --dangerously-skip-permissions`;
+    if (isWindows) {
+      const safePrompt = prompt.replace(/"/g, '\\"');
+      if (source === 'claude') {
+        shellCmd = `echo 1 | claude -p "${safePrompt}" --dangerously-skip-permissions`;
+      } else {
+        shellCmd = `codex exec "${safePrompt}" --skip-git-repo-check --full-auto`;
+      }
     } else {
-      shellCmd = `codex exec '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
+      const safePrompt = prompt.replace(/'/g, "'\\''");
+      if (source === 'claude') {
+        shellCmd = `echo 1 | claude -p '${safePrompt}' --dangerously-skip-permissions`;
+      } else {
+        shellCmd = `codex exec '${safePrompt}' --skip-git-repo-check --full-auto < /dev/null`;
+      }
     }
 
     console.log(`[NewSession] Running: ${shellCmd} (cwd: ${targetCwd})`);
@@ -373,13 +442,14 @@ export class CommandChannel {
     delete env.CLAUDECODE;
     delete env.CLAUDE_CODE_ENTRYPOINT;
 
-    if (env.PATH && !env.PATH.includes('/usr/local/bin')) {
+    if (!isWindows && env.PATH && !env.PATH.includes('/usr/local/bin')) {
       env.PATH = `/usr/local/bin:${env.PATH}`;
     }
 
     exec(shellCmd, {
       cwd: targetCwd,
       env,
+      shell: isWindows ? 'cmd.exe' : undefined,
       timeout: 300000,
       maxBuffer: 10 * 1024 * 1024,
     }, (error, stdout, stderr) => {
