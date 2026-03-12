@@ -1,4 +1,5 @@
 import type { ChatMessage, SyncPayload, ChatSource } from '@ai-code-board/shared';
+import { OffsetStore } from './offset-store.js';
 
 interface PendingSession {
   sessionId: string;
@@ -23,6 +24,7 @@ export class Uploader {
   constructor(
     private serverUrl: string,
     private machineId: string,
+    private offsetStore: OffsetStore,
     private intervalMs: number = 3000
   ) {}
 
@@ -81,11 +83,16 @@ export class Uploader {
         const result = await res.json() as any;
         console.log(`[Sync] Batch uploaded ${result.inserted} messages (${i + batch.length}/${allMessages.length})`);
       }
+
+      // Persist offsets only after the server has accepted the batch.
+      for (const offset of offsets) {
+        this.offsetStore.set(offset.filePath, offset.byteOffset, offset.lineCount);
+      }
     } catch (err) {
       console.error(`[Sync] Upload failed, requeueing:`, err);
       this.messageQueue.unshift(...allMessages);
       for (const s of sessions) {
-        if (!this.sessionQueue.find(q => q.sessionId === s.sessionId)) {
+        if (!this.sessionQueue.find(q => q.sessionId === s.sessionId && q.filePath === s.filePath)) {
           this.sessionQueue.push(s);
         }
       }

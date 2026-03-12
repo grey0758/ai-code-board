@@ -77,8 +77,8 @@ async function main() {
 
   const offsetStore = new OffsetStore();
   const reader = new IncrementalReader(machineId, offsetStore);
-  const uploader = new Uploader(SERVER_URL, machineId, SYNC_INTERVAL);
-  const watcher = new FileWatcher(watchDirs, reader, uploader, offsetStore);
+  const uploader = new Uploader(SERVER_URL, machineId, offsetStore, SYNC_INTERVAL);
+  const watcher = new FileWatcher(watchDirs, reader, uploader);
   const heartbeat = new Heartbeat(SERVER_URL, machineId, HEARTBEAT_INTERVAL);
 
   const commandChannel = new CommandChannel(SERVER_URL, machineId);

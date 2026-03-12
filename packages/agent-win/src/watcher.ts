@@ -1,7 +1,6 @@
 import chokidar from 'chokidar';
 import { IncrementalReader } from './reader.js';
 import { Uploader } from './uploader.js';
-import { OffsetStore } from './offset-store.js';
 import { readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -11,8 +10,7 @@ export class FileWatcher {
   constructor(
     private watchDirs: string[],
     private reader: IncrementalReader,
-    private uploader: Uploader,
-    private offsetStore: OffsetStore
+    private uploader: Uploader
   ) {}
 
   async start() {
@@ -89,9 +87,6 @@ export class FileWatcher {
   private async processFile(filePath: string) {
     const result = await this.reader.readFile(filePath);
     if (!result || result.messages.length === 0) return;
-
-    // Update local offset
-    this.offsetStore.set(filePath, result.newOffset, result.newLineCount);
 
     // Queue for upload
     this.uploader.push(
